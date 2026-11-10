@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeMentor AI - Multi-Agent Code Debugger</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Highlight.js for code syntax styling -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+  <!-- Marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Logo & Branding -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <i class="fa-solid fa-brain text-white text-lg"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-lg text-white tracking-tight">CodeMentor AI</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">Multi-Agent</span>
+          </div>
+          <p class="text-xs text-slate-400 hidden sm:block">Automated Code Debugging &bull; LeetCode &amp; Competitive Programming</p>
+        </div>
+      </div>
+
+      <!-- Controls: Sample Loader & Backend Status -->
+      <div class="flex items-center space-x-3">
+        <!-- Sample Selector -->
+        <div class="relative">
+          <select id="exampleSelector" class="bg-slate-800 border border-slate-700 text-xs sm:text-sm text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition cursor-pointer">
+            <option value="" disabled selected>💡 Load Sample...</option>
+            <option value="climbing_stairs_lc">LeetCode: Climbing Stairs II</option>
+            <option value="two_sum_lc">LeetCode: Two Sum (Index Bug)</option>
+            <option value="find_max_bug">CP: Max Element (Min Bug)</option>
+            <option value="palindrome_bug">CP: Palindrome (Case Bug)</option>
+          </select>
+        </div>
+
+        <!-- Backend Status Pill -->
+        <div id="backendStatusPill" class="flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 border border-slate-700 text-slate-300">
+          <span id="backendStatusDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span id="backendStatusText" class="hidden md:inline">Connecting...</span>
+        </div>
+
+        <!-- Settings Button -->
+        <button id="settingsBtn" title="Backend Settings" class="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 transition">
+          <i class="fa-solid fa-gear text-sm"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- LEFT COLUMN: Problem & Code Inputs (5 Cols) -->
+    <div class="lg:col-span-5 flex flex-col space-y-4">
+      
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col flex-1 space-y-4">
+        
+        <!-- Two Options Switcher -->
+        <div class="grid grid-cols-2 p-1 bg-slate-950 border border-slate-800 rounded-xl text-xs font-medium">
+          <button type="button" id="modeLinkBtn" class="py-2 px-2.5 rounded-lg bg-indigo-600 text-white font-semibold transition flex items-center justify-center space-x-1.5 shadow-sm">
+            <i class="fa-solid fa-link text-[11px]"></i>
+            <span>Option 1: Problem Link</span>
+          </button>
+          <button type="button" id="modeManualBtn" class="py-2 px-2.5 rounded-lg text-slate-400 hover:text-white transition flex items-center justify-center space-x-1.5">
+            <i class="fa-solid fa-pen-to-square text-[11px]"></i>
+            <span>Option 2: Manual Pasting</span>
+          </button>
+        </div>
+
+        <!-- Section Header -->
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+          <div class="flex items-center space-x-2 text-xs font-semibold text-white">
+            <i class="fa-solid fa-code text-indigo-400"></i>
+            <span id="inputSectionTitle">Paste Problem Link</span>
+          </div>
+          <button id="clearBtn" class="text-xs text-slate-400 hover:text-rose-400 transition flex items-center space-x-1">
+            <i class="fa-solid fa-trash-can"></i>
+            <span>Clear</span>
+          </button>
+        </div>
+
+        <form id="codeForm" class="flex flex-col flex-1 space-y-4">
+          
+          <!-- OPTION 1: PROBLEM LINK CONTAINER -->
+          <div id="linkModeContainer" class="space-y-3">
+            <div>
+              <label for="problemUrlInput" class="text-xs font-medium text-slate-300 block mb-1">
+                Paste Problem Link (LeetCode, etc.)
+              </label>
+              <div class="flex space-x-2">
+                <div class="relative flex-1">
+                  <input
+                    type="text"
+                    id="problemUrlInput"
+                    placeholder="https://leetcode.com/problems/climbing-stairs-ii/"
+                    class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono pr-8 placeholder-slate-600">
+                  <button type="button" id="clearUrlBtn" class="absolute right-2.5 top-2.5 text-slate-500 hover:text-slate-300 text-xs hidden">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  id="fetchProblemBtn"
+                  class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center space-x-1.5 transition whitespace-nowrap shadow-md shadow-indigo-600/20 active:scale-[0.98]">
+                  <i class="fa-solid fa-cloud-arrow-down"></i>
+                  <span>Extract</span>
+                </button>
+              </div>
+
+              <!-- Quick LeetCode Problem Pills -->
+              <div class="flex items-center space-x-1.5 mt-2.5 overflow-x-auto text-[11px] pb-1">
+                <span class="text-slate-500 whitespace-nowrap text-[10px]">Quick:</span>
+                <button type="button" class="quick-link-pill px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 whitespace-nowrap" data-slug="climbing-stairs-ii">Climbing Stairs II</button>
+                <button type="button" class="quick-link-pill px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 whitespace-nowrap" data-slug="two-sum">Two Sum</button>
+                <button type="button" class="quick-link-pill px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 whitespace-nowrap" data-slug="climbing-stairs">Climbing Stairs</button>
+                <button type="button" class="quick-link-pill px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 whitespace-nowrap" data-slug="valid-parentheses">Valid Parentheses</button>
+              </div>
+            </div>
+
+            <!-- Extraction Loading Banner -->
+            <div id="extractLoading" class="hidden p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300 flex items-center space-x-2">
+              <i class="fa-solid fa-circle-notch fa-spin"></i>
+              <span>Extracting problem statement, test cases, and starter template...</span>
+            </div>
+
+            <!-- Extracted Problem Summary (Collapsible Preview) -->
+            <div id="extractedSummary" class="hidden rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <div class="flex items-center space-x-2 text-emerald-400 font-semibold">
+                  <i class="fa-solid fa-circle-check"></i>
+                  <span id="extractedTitleText">Extracted: Climbing Stairs II</span>
+                </div>
+                <button type="button" id="toggleExtractedDetailsBtn" class="text-[11px] text-slate-400 hover:text-white flex items-center space-x-1">
+                  <span id="toggleDetailsLabel">View Details</span>
+                  <i id="toggleDetailsIcon" class="fa-solid fa-chevron-down text-[10px]"></i>
+                </button>
+              </div>
+              
+              <!-- Collapsible preview of extracted problem -->
+              <div id="extractedDetailsPanel" class="hidden text-xs space-y-2 pt-2 border-t border-emerald-500/20">
+                <div>
+                  <span class="text-slate-400 font-medium block mb-0.5 text-[11px]">Problem Statement:</span>
+                  <p id="extractedProblemPreview" class="text-slate-300 bg-slate-950 p-2 rounded-lg max-h-24 overflow-y-auto text-[11px] leading-relaxed"></p>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span class="text-slate-400 block mb-0.5 font-medium">Sample Input:</span>
+                    <pre id="extractedSampleInputPreview" class="bg-slate-950 p-1.5 rounded text-indigo-200 overflow-x-auto text-[11px] font-mono"></pre>
+                  </div>
+                  <div>
+                    <span class="text-slate-400 block mb-0.5 font-medium">Sample Output:</span>
+                    <pre id="extractedSampleOutputPreview" class="bg-slate-950 p-1.5 rounded text-emerald-200 overflow-x-auto text-[11px] font-mono"></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- OPTION 2: MANUAL INPUT CONTAINER (Problem + Sample Input + Sample Output) -->
+          <div id="manualModeContainer" class="hidden space-y-4">
+            <!-- 1. Problem Statement -->
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <label for="problemInput" class="text-xs font-medium text-slate-300">Problem Statement</label>
+                <span class="text-[11px] text-slate-500">Required</span>
+              </div>
+              <textarea
+                id="problemInput"
+                rows="3"
+                placeholder="e.g. Find the maximum element in an array of integers."
+                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition placeholder-slate-600 resize-y"></textarea>
+            </div>
+
+            <!-- 2. Sample Input & Output (2 Cols) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="sampleInput" class="text-xs font-medium text-slate-300 block mb-1">Sample Input</label>
+                <textarea
+                  id="sampleInput"
+                  rows="3"
+                  placeholder="n = 4, costs = [1,2,3,4]"
+                  class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition placeholder-slate-600 resize-y code-font"></textarea>
+              </div>
+              <div>
+                <label for="sampleOutput" class="text-xs font-medium text-slate-300 block mb-1">Sample Output</label>
+                <textarea
+                  id="sampleOutput"
+                  rows="3"
+                  placeholder="13"
+                  class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition placeholder-slate-600 resize-y code-font"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUBMITTED PYTHON CODE (Shared across both options) -->
+          <div class="flex-1 flex flex-col min-h-[220px]">
+            <div class="flex justify-between items-center mb-1">
+              <div class="flex items-center space-x-2">
+                <label for="codeInput" class="text-xs font-medium text-slate-300">Submitted Python Code</label>
+                <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">Python 3</span>
+              </div>
+              <span id="codeEditorHint" class="text-[11px] text-slate-500">LeetCode class or CP format</span>
+            </div>
+            <textarea
+              id="codeInput"
+              rows="10"
+              placeholder="class Solution:&#10;    def climbStairs(self, n: int, costs: List[int]) -> int:&#10;        # Paste your solution here"
+              class="w-full flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition placeholder-slate-600 resize-y code-font"
+              spellcheck="false"
+              required></textarea>
+          </div>
+
+          <!-- Submit Action Button -->
+          <div class="pt-1">
+            <button
+              type="submit"
+              id="submitBtn"
+              class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-medium text-sm flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/25 active:scale-[0.99] transition duration-150">
+              <i class="fa-solid fa-bolt text-yellow-300"></i>
+              <span>Analyze &amp; Debug Code</span>
+              <span class="text-xs opacity-75 font-normal ml-1 hidden sm:inline">(Ctrl + Enter)</span>
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: Output & Multi-Agent Diagnosis (7 Cols) -->
+    <div class="lg:col-span-7 flex flex-col">
+      <div id="outputCard" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex-1 flex flex-col min-h-[500px]">
+        
+        <!-- STATE 1: IDLE / WELCOME PLACEHOLDER -->
+        <div id="idleState" class="flex-1 flex flex-col items-center justify-center text-center p-6 my-auto">
+          <div class="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-4 text-indigo-400 text-2xl">
+            <i class="fa-solid fa-laptop-code"></i>
+          </div>
+          <h3 class="text-lg font-semibold text-white mb-2">Ready to Debug</h3>
+          <p class="text-sm text-slate-400 max-w-md mb-6">
+            Paste a <strong>LeetCode link</strong> on the left (Option 1) or enter problem details manually (Option 2). Our multi-agent AI system executes, differential-tests, and pinpoints any logical bugs.
+          </p>
+
+          <!-- Multi-Agent Flow Overview -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-w-lg w-full text-left">
+            <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80">
+              <div class="text-xs text-indigo-400 font-semibold mb-0.5"><i class="fa-solid fa-play text-[10px] mr-1"></i> Agent 1</div>
+              <div class="text-[11px] text-slate-400">Execution Simulation</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80">
+              <div class="text-xs text-violet-400 font-semibold mb-0.5"><i class="fa-solid fa-bullseye text-[10px] mr-1"></i> Agent 2</div>
+              <div class="text-[11px] text-slate-400">Reference Solution</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80">
+              <div class="text-xs text-sky-400 font-semibold mb-0.5"><i class="fa-solid fa-vial text-[10px] mr-1"></i> Agent 3</div>
+              <div class="text-[11px] text-slate-400">10 Diverse Test Cases</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80">
+              <div class="text-xs text-teal-400 font-semibold mb-0.5"><i class="fa-solid fa-scale-balanced text-[10px] mr-1"></i> Agent 4</div>
+              <div class="text-[11px] text-slate-400">Differential Testing</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80">
+              <div class="text-xs text-amber-400 font-semibold mb-0.5"><i class="fa-solid fa-magnifying-glass text-[10px] mr-1"></i> Agent 5</div>
+              <div class="text-[11px] text-slate-400">Bug Root Cause</div>
+            </div>
+            <div class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80">
+              <div class="text-xs text-emerald-400 font-semibold mb-0.5"><i class="fa-solid fa-lightbulb text-[10px] mr-1"></i> Agent 6</div>
+              <div class="text-[11px] text-slate-400">3 Optimal Solutions</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STATE 2: LOADING PROGRESS -->
+        <div id="loadingState" class="hidden flex-1 flex flex-col items-center justify-center p-8 my-auto text-center">
+          <!-- Animated Spinner -->
+          <div class="relative w-16 h-16 mb-5">
+            <div class="absolute inset-0 rounded-full border-4 border-indigo-500/20"></div>
+            <div class="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+            <div class="absolute inset-0 flex items-center justify-center text-indigo-400 text-sm">
+              <i class="fa-solid fa-microchip"></i>
+            </div>
+          </div>
+
+          <h3 class="text-base font-semibold text-white mb-1">Analyzing Code with Multi-Agent AI...</h3>
+          <p id="loadingTimer" class="text-xs text-slate-400 mb-6">Elapsed: 0.0s</p>
+
+          <!-- Multi-Agent Step Pipeline -->
+          <div class="w-full max-w-md space-y-2 text-left">
+            <div id="step-1" class="agent-step p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-300">
+              <span class="flex items-center space-x-2">
+                <i class="fa-solid fa-circle-notch fa-spin text-indigo-400 step-icon"></i>
+                <span>Simulating code execution (LeetCode / CP environment)...</span>
+              </span>
+              <span class="text-[10px] text-slate-500 font-mono">Agent 1</span>
+            </div>
+            <div id="step-2" class="agent-step p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400 opacity-60">
+              <span class="flex items-center space-x-2">
+                <i class="fa-regular fa-circle step-icon"></i>
+                <span>Synthesizing correct reference solution...</span>
+              </span>
+              <span class="text-[10px] text-slate-500 font-mono">Agent 2</span>
+            </div>
+            <div id="step-3" class="agent-step p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400 opacity-60">
+              <span class="flex items-center space-x-2">
+                <i class="fa-regular fa-circle step-icon"></i>
+                <span>Generating edge & boundary test cases...</span>
+              </span>
+              <span class="text-[10px] text-slate-500 font-mono">Agent 3</span>
+            </div>
+            <div id="step-4" class="agent-step p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400 opacity-60">
+              <span class="flex items-center space-x-2">
+                <i class="fa-regular fa-circle step-icon"></i>
+                <span>Executing differential comparison tests...</span>
+              </span>
+              <span class="text-[10px] text-slate-500 font-mono">Agent 4</span>
+            </div>
+            <div id="step-5" class="agent-step p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400 opacity-60">
+              <span class="flex items-center space-x-2">
+                <i class="fa-regular fa-circle step-icon"></i>
+                <span>Diagnosing logical errors & 3 optimal solutions...</span>
+              </span>
+              <span class="text-[10px] text-slate-500 font-mono">Agent 5-7</span>
+            </div>
+          </div>
+
+          <!-- Voluntary Cancel Button -->
+          <div class="mt-5">
+            <button type="button" id="cancelAnalysisBtn" class="px-3.5 py-1.5 text-xs text-slate-400 hover:text-rose-300 bg-slate-800/80 hover:bg-slate-800 rounded-lg border border-slate-700 transition flex items-center space-x-1.5">
+              <i class="fa-solid fa-xmark text-[11px]"></i>
+              <span>Cancel Analysis</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- STATE 3: ERROR MESSAGE -->
+        <div id="errorState" class="hidden flex-1 flex flex-col items-center justify-center p-6 text-center my-auto">
+          <div class="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-3 text-rose-400 text-xl">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <h3 class="text-base font-semibold text-rose-300 mb-2">Analysis Failed</h3>
+          <p id="errorMessage" class="text-xs text-slate-400 max-w-md mb-5 break-words">
+            An error occurred while connecting to the backend server.
+          </p>
+          <div class="flex space-x-3">
+            <button id="retryBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 rounded-lg border border-slate-700 transition">
+              <i class="fa-solid fa-rotate-right mr-1.5"></i> Try Again
+            </button>
+            <button id="openSettingsFromErr" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-xs font-medium text-white rounded-lg transition">
+              Check Backend URL
+            </button>
+          </div>
+        </div>
+
+        <!-- STATE 4: RESULTS DISPLAY -->
+        <div id="resultsState" class="hidden flex-1 flex flex-col space-y-4">
+          
+          <!-- Top Results Summary Bar -->
+          <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <!-- Execution Status Badge -->
+              <span id="badgeExecution" class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <i class="fa-solid fa-check mr-1.5 text-[11px]"></i> Execution: SUCCESS
+              </span>
+              
+              <!-- Sample Passed Badge -->
+              <span id="badgeSample" class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <i class="fa-solid fa-vial-circle-check mr-1.5 text-[11px]"></i> Sample: PASSED
+              </span>
+
+              <!-- Failed Tests Count Badge -->
+              <span id="badgeFailedCount" class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                0 Failed Tests
+              </span>
+            </div>
+
+            <!-- Elapsed Time -->
+            <div class="text-xs text-slate-400 flex items-center space-x-1">
+              <i class="fa-regular fa-clock text-[11px]"></i>
+              <span id="resultTime">Took 3.4s</span>
+            </div>
+          </div>
+
+          <!-- Tab Navigation -->
+          <div class="flex border-b border-slate-800 text-xs font-medium overflow-x-auto space-x-1">
+            <button data-tab="tab-overview" class="tab-btn px-3 py-2 border-b-2 border-indigo-500 text-indigo-400 flex items-center space-x-1.5 whitespace-nowrap">
+              <i class="fa-solid fa-chart-pie"></i>
+              <span>Overview</span>
+            </button>
+            <button data-tab="tab-analysis" class="tab-btn px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5 whitespace-nowrap">
+              <i class="fa-solid fa-microscope"></i>
+              <span>Logical Analysis</span>
+            </button>
+            <button data-tab="tab-failed-tests" class="tab-btn px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5 whitespace-nowrap">
+              <i class="fa-solid fa-flask-vial"></i>
+              <span>Failed Testcases</span>
+              <span id="tabFailedBadge" class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500/20 text-rose-300 hidden">0</span>
+            </button>
+            <button data-tab="tab-solutions" class="tab-btn px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5 whitespace-nowrap">
+              <i class="fa-solid fa-lightbulb"></i>
+              <span>3 Solutions</span>
+            </button>
+            <button data-tab="tab-raw" class="tab-btn px-3 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center space-x-1.5 whitespace-nowrap">
+              <i class="fa-solid fa-code"></i>
+              <span>Raw JSON</span>
+            </button>
+          </div>
+
+          <!-- TAB CONTENTS -->
+          <div class="flex-1 overflow-y-auto max-h-[550px] pr-1">
+            
+            <!-- TAB 1: OVERVIEW -->
+            <div id="tab-overview" class="tab-panel space-y-4">
+              <!-- Execution Card -->
+              <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+                <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-3 flex items-center space-x-1.5">
+                  <i class="fa-solid fa-terminal text-indigo-400"></i>
+                  <span>Code Execution Details</span>
+                </h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs mb-3">
+                  <div class="p-3 rounded-lg bg-slate-900 border border-slate-800/80">
+                    <span class="text-slate-400 block mb-1">Execution Status:</span>
+                    <span id="overviewStatus" class="font-mono font-semibold text-emerald-400">SUCCESS</span>
+                  </div>
+                  <div class="p-3 rounded-lg bg-slate-900 border border-slate-800/80">
+                    <span class="text-slate-400 block mb-1">Error Type:</span>
+                    <span id="overviewErrorType" class="font-mono text-slate-200">no errors</span>
+                  </div>
+                </div>
+
+                <!-- Execution Output / Stderr -->
+                <div>
+                  <span class="text-xs text-slate-400 block mb-1">Execution Output / Return Value:</span>
+                  <pre id="overviewOutput" class="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-slate-200 overflow-x-auto"></pre>
+                </div>
+
+                <!-- Error Description if any -->
+                <div id="overviewErrorDescContainer" class="mt-3 hidden">
+                  <span class="text-xs text-rose-400 block mb-1 font-medium">Error Description:</span>
+                  <div id="overviewErrorDesc" class="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300"></div>
+                </div>
+              </div>
+
+              <!-- Quick Diagnosis Preview -->
+              <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+                <div class="flex justify-between items-center mb-2">
+                  <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                    <i class="fa-solid fa-file-lines text-violet-400"></i>
+                    <span>Quick Summary</span>
+                  </h4>
+                  <button id="viewFullAnalysisBtn" class="text-xs text-indigo-400 hover:text-indigo-300">
+                    View Full Analysis &rarr;
+                  </button>
+                </div>
+                <div id="overviewDiagnosisSnippet" class="text-xs text-slate-300 leading-relaxed"></div>
+              </div>
+            </div>
+
+            <!-- TAB 2: LOGICAL ANALYSIS -->
+            <div id="tab-analysis" class="tab-panel hidden space-y-3">
+              <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+                <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-800">
+                  <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                    <i class="fa-solid fa-bug text-amber-400"></i>
+                    <span>Logical Error &amp; Code Diagnosis</span>
+                  </h4>
+                  <button id="copyAnalysisBtn" class="text-xs text-slate-400 hover:text-white transition flex items-center space-x-1">
+                    <i class="fa-regular fa-copy"></i>
+                    <span>Copy Analysis</span>
+                  </button>
+                </div>
+                <div id="analysisMarkdown" class="markdown-content text-xs"></div>
+              </div>
+            </div>
+
+            <!-- TAB 3: FAILED TESTCASES -->
+            <div id="tab-failed-tests" class="tab-panel hidden space-y-3">
+              <div id="failedTestsContainer" class="space-y-3">
+                <!-- Dynamically generated test cards inserted here -->
+              </div>
+            </div>
+
+            <!-- TAB 4: 3 SOLUTIONS -->
+            <div id="tab-solutions" class="tab-panel hidden space-y-3">
+              <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+                <div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-800">
+                  <h4 class="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                    <i class="fa-solid fa-graduation-cap text-emerald-400"></i>
+                    <span>Three Approaches: Brute Force &bull; Better &bull; Optimal</span>
+                  </h4>
+                  <button id="copySolutionsBtn" class="text-xs text-slate-400 hover:text-white transition flex items-center space-x-1">
+                    <i class="fa-regular fa-copy"></i>
+                    <span>Copy Solutions</span>
+                  </button>
+                </div>
+                <div id="solutionsMarkdown" class="markdown-content text-xs"></div>
+              </div>
+            </div>
+
+            <!-- TAB 5: RAW JSON -->
+            <div id="tab-raw" class="tab-panel hidden space-y-3">
+              <div class="bg-slate-950 border border-slate-800 rounded-xl p-4">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-xs text-slate-400">Raw API Output (`final_report`)</span>
+                  <button id="copyRawBtn" class="text-xs text-slate-400 hover:text-white transition flex items-center space-x-1">
+                    <i class="fa-regular fa-copy"></i>
+                    <span>Copy JSON</span>
+                  </button>
+                </div>
+                <pre id="rawJsonResponse" class="bg-slate-900 border border-slate-800 rounded-lg p-3 text-xs font-mono text-emerald-300 overflow-x-auto max-h-[450px]"></pre>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Settings Modal (Backend URL Config) -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+        <h3 class="text-sm font-semibold text-white flex items-center space-x-2">
+          <i class="fa-solid fa-sliders text-indigo-400"></i>
+          <span>Backend Configuration</span>
+        </h3>
+        <button id="closeSettingsModal" class="text-slate-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div>
+          <label for="apiUrlInput" class="block font-medium text-slate-300 mb-1">Analysis API Endpoint</label>
+          <input
+            type="text"
+            id="apiUrlInput"
+            value="http://127.0.0.1:8000/analyze"
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label for="extractUrlInput" class="block font-medium text-slate-300 mb-1">Problem Extractor Endpoint</label>
+          <input
+            type="text"
+            id="extractUrlInput"
+            value="http://127.0.0.1:8000/extract-problem"
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label for="healthUrlInput" class="block font-medium text-slate-300 mb-1">Health Check URL</label>
+          <input
+            type="text"
+            id="healthUrlInput"
+            value="http://127.0.0.1:8000/health"
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div class="pt-2 flex justify-end space-x-2">
+          <button id="testConnectionBtn" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
+            Test Connection
+          </button>
+          <button id="saveSettingsBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition">
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-900 bg-slate-950 py-3 text-center text-xs text-slate-500">
+    CodeMentor AI &bull; Multi-Agent Code Debugger &bull; Supports LeetCode &amp; Competitive Programming
+  </footer>
+
+  <!-- Main Application Script -->
+  <script src="app.js"></script>
+</body>
+</html>
